@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: kraken_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-kraken}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-kraken}
+      POSTGRES_DB: kraken_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-kraken} -d kraken_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kraken_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: kraken_redis
+    command: redis-server --requirepass "${REDIS_PASSWORD:-secure_redis_default}"
+    volumes:
+      - redisdata:/data
+    networks:
+      - kraken_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kraken_backend
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_URL=jdbc:postgresql://db:5432/kraken_db?rewriteBatchedStatements=true
+      - DB_USER=${DB_USER:-kraken}
+      - DB_PASSWORD=${DB_PASSWORD:-kraken}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-secure_redis_default}
+      - JWT_SECRET=${JWT_SECRET:-changeme_in_production_to_a_secure_key_32_chars}
+      - ENCRYPTION_SECRET=${ENCRYPTION_SECRET:-changeme_in_production}
+      - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD:-admin123}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - kraken_logs:/var/log/ussd
+    networks:
+      - kraken_network
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
+    container_name: kraken_frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - kraken_network
+
+volumes:
+  pgdata:
+  redisdata:
+  kraken_logs:
+
+networks:
+  kraken_network:
+    driver: bridge

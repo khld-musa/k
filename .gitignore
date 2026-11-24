@@ -1,0 +1,32 @@
+# Spreadsheets / data exports
+*.xlsx
+
+# Offline-bundle artifacts (too large for GitHub; keep them outside git)
+offline-bundle/debs-jammy/
+offline-bundle/binaries/
+offline-bundle/**/*.tar.gz
+offline-bundle/**/*.tar.xz
+*.deb
+*.rpm
+*.jar
+*.war
+
+# Build output / deps
+node_modules/
+.next/
+target/
+dist/
+build/
+
+# Secrets / local env
+.env
+.env.*
+*.pem
+*.key
+*.jks
+.claude/settings.local.json
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
